@@ -1,0 +1,8 @@
+*.gem
+.bundle
+.rubocop-https*
+Gemfile.lock
+pkg
+tmp
+coverage/
+.yardoc
