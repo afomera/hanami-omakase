@@ -45,4 +45,4 @@ That's all for now, you'll have access to the Core Extensions listed below throu
 1.year #=> 31536000
 ```
 
-There are plural and sigular methods for those mentioned above.
+There are plural and singular methods for those mentioned above.
