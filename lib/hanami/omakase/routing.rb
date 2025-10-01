@@ -171,7 +171,11 @@ module Hanami
 
         def resolve_suffix(suffix)
           return "" if suffix.nil? || suffix.empty?
-          return "" if suffix == "/:id" && type == :singular
+
+          # For singular resources, remove :id from paths
+          if type == :singular
+            return suffix.gsub("/:id", "")
+          end
 
           suffix
         end
