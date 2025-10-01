@@ -6,6 +6,8 @@ eval_gemfile "Gemfile.devtools"
 
 gemspec
 
+gem "bigdecimal", require: false, platforms: :mri
+
 group :tools do
   gem "debug"
 end

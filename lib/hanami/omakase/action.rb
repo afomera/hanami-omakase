@@ -203,5 +203,5 @@ end
 
 # Automatically include Omakase::Action functionality in all Hanami::Action classes
 if defined?(Hanami::Action)
-  Hanami::Action.include(Hanami::Omakase::Action)
+  Hanami::Action.include(Hanami::Omakase::Action) # :nodoc:
 end
