@@ -46,50 +46,17 @@ module Hanami
       # @option options [String] :path Override the URL path
       # @option options [String, Symbol] :as Override the route name prefix
       def resources(name, **options, &block)
-        controller = options[:controller] || name.to_s
-        path = options[:path] || name.to_s
-        route_name = options[:as] || singularize(name.to_s)
-        actions = determine_actions(%i[index new create show edit update destroy], options)
+        resource_builder = ResourceBuilder.new(
+          router: self,
+          name: name,
+          type: :plural,
+          options: options
+        )
 
-        # Index route
-        if actions.include?(:index)
-          get "/#{path}", to: "#{controller}.index", as: pluralize(route_name)
-        end
+        resource_builder.build_routes
 
-        # New route
-        if actions.include?(:new)
-          get "/#{path}/new", to: "#{controller}.new", as: "new_#{route_name}"
-        end
-
-        # Create route
-        if actions.include?(:create)
-          post "/#{path}", to: "#{controller}.create", as: pluralize(route_name)
-        end
-
-        # Show route
-        if actions.include?(:show)
-          get "/#{path}/:id", to: "#{controller}.show", as: route_name
-        end
-
-        # Edit route
-        if actions.include?(:edit)
-          get "/#{path}/:id/edit", to: "#{controller}.edit", as: "edit_#{route_name}"
-        end
-
-        # Update routes
-        if actions.include?(:update)
-          patch "/#{path}/:id", to: "#{controller}.update", as: route_name
-          put "/#{path}/:id", to: "#{controller}.update", as: route_name
-        end
-
-        # Destroy route
-        if actions.include?(:destroy)
-          delete "/#{path}/:id", to: "#{controller}.destroy", as: route_name
-        end
-
-        # Handle nested resources if block given
         if block_given?
-          nested_context = NestedResourceContext.new(self, path)
+          nested_context = NestedResourceContext.new(self, resource_builder.path)
           nested_context.instance_eval(&block)
         end
       end
@@ -103,71 +70,135 @@ module Hanami
       # @option options [String] :path Override the URL path
       # @option options [String, Symbol] :as Override the route name
       def resource(name, **options, &block)
-        controller = options[:controller] || name.to_s
-        path = options[:path] || name.to_s
-        route_name = options[:as] || name.to_s
-        actions = determine_actions(%i[new create show edit update destroy], options)
+        resource_builder = ResourceBuilder.new(
+          router: self,
+          name: name,
+          type: :singular,
+          options: options
+        )
 
-        # New route
-        if actions.include?(:new)
-          get "/#{path}/new", to: "#{controller}.new", as: "new_#{route_name}"
-        end
+        resource_builder.build_routes
 
-        # Create route
-        if actions.include?(:create)
-          post "/#{path}", to: "#{controller}.create", as: route_name
-        end
-
-        # Show route
-        if actions.include?(:show)
-          get "/#{path}", to: "#{controller}.show", as: route_name
-        end
-
-        # Edit route
-        if actions.include?(:edit)
-          get "/#{path}/edit", to: "#{controller}.edit", as: "edit_#{route_name}"
-        end
-
-        # Update routes
-        if actions.include?(:update)
-          patch "/#{path}", to: "#{controller}.update", as: route_name
-          put "/#{path}", to: "#{controller}.update", as: route_name
-        end
-
-        # Destroy route
-        if actions.include?(:destroy)
-          delete "/#{path}", to: "#{controller}.destroy", as: route_name
-        end
-
-        # Handle nested resources if block given
         if block_given?
-          nested_context = NestedResourceContext.new(self, path)
+          nested_context = NestedResourceContext.new(self, resource_builder.path)
           nested_context.instance_eval(&block)
         end
       end
 
-      private
+      # Builds RESTful routes for a resource
+      class ResourceBuilder
+        attr_reader :router, :name, :type, :options, :controller, :path, :route_name
 
-      def determine_actions(default_actions, options)
-        if options[:only]
-          Array(options[:only]) & default_actions
-        elsif options[:except]
-          default_actions - Array(options[:except])
-        else
-          default_actions
+        def initialize(router:, name:, type:, options:)
+          @router = router
+          @name = name
+          @type = type
+          @options = options
+          @controller = options[:controller] || name.to_s
+          @path = options[:path] || name.to_s
+          @route_name = determine_route_name
+        end
+
+        def build_routes
+          allowed_actions.each do |action|
+            route_config = ROUTE_CONFIGURATIONS[action]
+            next unless route_config
+
+            build_route(action, route_config)
+          end
+        end
+
+        private
+
+        ROUTE_CONFIGURATIONS = {
+          index: {method: :get, path_suffix: "", name_suffix: ""},
+          new: {method: :get, path_suffix: "/new", name_suffix: "new_"},
+          create: {method: :post, path_suffix: "", name_suffix: ""},
+          show: {method: :get, path_suffix: "/:id", name_suffix: ""},
+          edit: {method: :get, path_suffix: "/:id/edit", name_suffix: "edit_"},
+          update: [
+            {method: :patch, path_suffix: "/:id", name_suffix: ""},
+            {method: :put, path_suffix: "/:id", name_suffix: ""}
+          ],
+          destroy: {method: :delete, path_suffix: "/:id", name_suffix: ""}
+        }.freeze
+
+        def determine_route_name
+          if options[:as]
+            options[:as].to_s
+          elsif type == :plural
+            Inflector.singularize(name.to_s)
+          else
+            name.to_s
+          end
+        end
+
+        def allowed_actions
+          default_actions = type == :plural ? PLURAL_ACTIONS : SINGULAR_ACTIONS
+          ActionFilter.filter(default_actions, options)
+        end
+
+        PLURAL_ACTIONS = %i[index new create show edit update destroy].freeze
+        SINGULAR_ACTIONS = %i[new create show edit update destroy].freeze
+
+        def build_route(action, config)
+          configs = config.is_a?(Array) ? config : [config]
+
+          configs.each do |route_config|
+            route_path = build_route_path(route_config[:path_suffix])
+            route_name = build_route_name(action, route_config[:name_suffix])
+            controller_action = "#{controller}.#{action}"
+
+            router.public_send(
+              route_config[:method],
+              route_path,
+              to: controller_action,
+              as: route_name
+            )
+          end
+        end
+
+        def build_route_path(suffix)
+          base_path = "/#{path}"
+          suffix = resolve_suffix(suffix)
+          suffix.empty? ? base_path : "#{base_path}#{suffix}"
+        end
+
+        def build_route_name(action, prefix)
+          base_name = action == :index ? Inflector.pluralize(route_name) : route_name
+          prefix.empty? ? base_name : "#{prefix}#{base_name}"
+        end
+
+        def resolve_suffix(suffix)
+          return "" if suffix.nil? || suffix.empty?
+          return "" if suffix == "/:id" && type == :singular
+
+          suffix
         end
       end
 
-      # Simple singularization - removes 's' from end
-      # For more complex cases, could integrate with inflection library
-      def singularize(word)
-        word.chomp("s")
+      # Filters actions based on :only and :except options
+      class ActionFilter
+        def self.filter(default_actions, options)
+          if options[:only]
+            Array(options[:only]) & default_actions
+          elsif options[:except]
+            default_actions - Array(options[:except])
+          else
+            default_actions
+          end
+        end
       end
 
-      # Simple pluralization - adds 's' to end
-      # For more complex cases, could integrate with inflection library
-      def pluralize(word)
-        word.end_with?("s") ? word : "#{word}s"
+      # Simple inflection utilities
+      module Inflector
+        def self.singularize(word)
+          word.chomp("s")
+        end
+
+        def self.pluralize(word)
+          word.end_with?("s") ? word : "#{word}s"
+        end
       end
 
       # Context for handling nested resources
@@ -178,98 +209,50 @@ module Hanami
         end
 
         def resources(name, **options)
-          controller = options[:controller] || name.to_s
-          path = options[:path] || name.to_s
-          route_name = options[:as] || @router.send(:singularize, name.to_s)
-          parent_name = singular_parent_name
-          actions = @router.send(:determine_actions, %i[index new create show edit update destroy], options)
-
-          # Nested routes with parent ID
-          if actions.include?(:index)
-            @router.get "/#{@parent_path}/:#{parent_name}_id/#{path}", to: "#{controller}.index",
-                                                                       as: "#{parent_name}_#{@router.send(:pluralize, route_name)}"
-          end
-
-          if actions.include?(:new)
-            @router.get "/#{@parent_path}/:#{parent_name}_id/#{path}/new", to: "#{controller}.new",
-                                                                           as: "new_#{parent_name}_#{route_name}"
-          end
-
-          if actions.include?(:create)
-            @router.post "/#{@parent_path}/:#{parent_name}_id/#{path}", to: "#{controller}.create",
-                                                                        as: "#{parent_name}_#{@router.send(:pluralize, route_name)}"
-          end
-
-          if actions.include?(:show)
-            @router.get "/#{@parent_path}/:#{parent_name}_id/#{path}/:id", to: "#{controller}.show",
-                                                                           as: "#{parent_name}_#{route_name}"
-          end
-
-          if actions.include?(:edit)
-            @router.get "/#{@parent_path}/:#{parent_name}_id/#{path}/:id/edit", to: "#{controller}.edit",
-                                                                                as: "edit_#{parent_name}_#{route_name}"
-          end
-
-          if actions.include?(:update)
-            @router.patch "/#{@parent_path}/:#{parent_name}_id/#{path}/:id", to: "#{controller}.update",
-                                                                             as: "#{parent_name}_#{route_name}"
-            @router.put "/#{@parent_path}/:#{parent_name}_id/#{path}/:id", to: "#{controller}.update",
-                                                                           as: "#{parent_name}_#{route_name}"
-          end
-
-          if actions.include?(:destroy)
-            @router.delete "/#{@parent_path}/:#{parent_name}_id/#{path}/:id", to: "#{controller}.destroy",
-                                                                              as: "#{parent_name}_#{route_name}"
-          end
+          build_nested_resource(name, :plural, options)
         end
 
         def resource(name, **options)
-          controller = options[:controller] || name.to_s
-          path = options[:path] || name.to_s
-          route_name = options[:as] || name.to_s
-          parent_name = singular_parent_name
-          actions = @router.send(:determine_actions, %i[new create show edit update destroy], options)
-
-          # Nested singular resource routes
-          if actions.include?(:new)
-            @router.get "/#{@parent_path}/:#{parent_name}_id/#{path}/new", to: "#{controller}.new",
-                                                                           as: "new_#{parent_name}_#{route_name}"
-          end
-
-          if actions.include?(:create)
-            @router.post "/#{@parent_path}/:#{parent_name}_id/#{path}", to: "#{controller}.create",
-                                                                        as: "#{parent_name}_#{route_name}"
-          end
-
-          if actions.include?(:show)
-            @router.get "/#{@parent_path}/:#{parent_name}_id/#{path}", to: "#{controller}.show",
-                                                                       as: "#{parent_name}_#{route_name}"
-          end
-
-          if actions.include?(:edit)
-            @router.get "/#{@parent_path}/:#{parent_name}_id/#{path}/edit", to: "#{controller}.edit",
-                                                                            as: "edit_#{parent_name}_#{route_name}"
-          end
-
-          if actions.include?(:update)
-            @router.patch "/#{@parent_path}/:#{parent_name}_id/#{path}", to: "#{controller}.update",
-                                                                         as: "#{parent_name}_#{route_name}"
-            @router.put "/#{@parent_path}/:#{parent_name}_id/#{path}", to: "#{controller}.update",
-                                                                       as: "#{parent_name}_#{route_name}"
-          end
-
-          if actions.include?(:destroy)
-            @router.delete "/#{@parent_path}/:#{parent_name}_id/#{path}", to: "#{controller}.destroy",
-                                                                          as: "#{parent_name}_#{route_name}"
-          end
+          build_nested_resource(name, :singular, options)
         end
 
         private
 
-        def singular_parent_name
-          # Simple singularization - remove 's' from end
-          # For more complex cases, could integrate with inflection library
-          @parent_path.to_s.chomp("s")
+        def build_nested_resource(name, type, options)
+          nested_builder = NestedResourceBuilder.new(
+            router: @router,
+            parent_path: @parent_path,
+            name: name,
+            type: type,
+            options: options
+          )
+
+          nested_builder.build_routes
+        end
+      end
+
+      # Builds nested resource routes
+      class NestedResourceBuilder < ResourceBuilder
+        attr_reader :parent_path, :parent_name
+
+        def initialize(router:, parent_path:, name:, type:, options:)
+          super(router: router, name: name, type: type, options: options)
+          @parent_path = parent_path
+          @parent_name = Inflector.singularize(parent_path.to_s)
+        end
+
+        private
+
+        def build_route_path(suffix)
+          base_path = "/#{parent_path}/:#{parent_name}_id/#{path}"
+          suffix = resolve_suffix(suffix)
+          suffix.empty? ? base_path : "#{base_path}#{suffix}"
+        end
+
+        def build_route_name(action, prefix)
+          base_name = action == :index ? Inflector.pluralize(route_name) : route_name
+          nested_name = "#{parent_name}_#{base_name}"
+          prefix.empty? ? nested_name : "#{prefix}#{nested_name}"
         end
       end
     end
