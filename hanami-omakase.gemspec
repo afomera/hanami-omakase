@@ -14,12 +14,12 @@ Gem::Specification.new do |spec|
   spec.summary       = "Hanami Omakase: Defaults picked for you"
   spec.description   = spec.summary
   spec.homepage      = "https://afomera.dev"
-  spec.files         = Dir["CHANGELOG.md", "LICENSE", "README.md", "hanami-omakase.gemspec", "lib/**/*"]
+  spec.files         = Dir["LICENSE", "README.md", "hanami-omakase.gemspec", "lib/**/*"]
   spec.bindir        = "bin"
   spec.executables   = []
   spec.require_paths = ["lib"]
 
-  spec.extra_rdoc_files = ["README.md", "CHANGELOG.md", "LICENSE"]
+  spec.extra_rdoc_files = ["README.md", "LICENSE"]
 
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
   spec.metadata["changelog_uri"]     = "https://github.com/afomera/hanami-omakase/blob/main/CHANGELOG.md"
