@@ -260,6 +260,6 @@ module Hanami
 end
 
 # Auto-include the routing module in Hanami::Routes if it's available
-if defined?(Hanami::Routes)
+if defined?(Hanami::Router)
   Hanami::Router.prepend(Hanami::Omakase::Routing)
 end
