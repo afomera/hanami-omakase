@@ -42,7 +42,7 @@ module Hanami
       # @param options [Hash] Options for customizing the routes
       # @option options [Array<Symbol>] :only Limit to specific actions
       # @option options [Array<Symbol>] :except Exclude specific actions
-      # @option options [String] :controller Override the controller name
+      # @option options [String] :to Override the action path (supports "namespace.action" or "namespace/action")
       # @option options [String] :path Override the URL path
       # @option options [String, Symbol] :as Override the route name prefix
       def resources(name, **options, &block)
@@ -66,7 +66,7 @@ module Hanami
       # @param options [Hash] Options for customizing the routes
       # @option options [Array<Symbol>] :only Limit to specific actions
       # @option options [Array<Symbol>] :except Exclude specific actions
-      # @option options [String] :controller Override the controller name
+      # @option options [String] :to Override the action path (supports "namespace.action" or "namespace/action")
       # @option options [String] :path Override the URL path
       # @option options [String, Symbol] :as Override the route name
       def resource(name, **options, &block)
@@ -94,9 +94,14 @@ module Hanami
           @name = name
           @type = type
           @options = options
-          @controller = options[:controller] || name.to_s
+          @controller = normalize_controller_name(options[:to] || name.to_s)
           @path = options[:path] || name.to_s
           @route_name = determine_route_name
+        end
+
+        def normalize_controller_name(controller_name)
+          # Convert namespace/action format to namespace.action format
+          controller_name.to_s.gsub("/", ".")
         end
 
         def build_routes
