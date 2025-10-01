@@ -87,21 +87,21 @@ module Hanami
 
       # Builds RESTful routes for a resource
       class ResourceBuilder
-        attr_reader :router, :name, :type, :options, :controller, :path, :route_name
+        attr_reader :router, :name, :type, :options, :action_path, :path, :route_name
 
         def initialize(router:, name:, type:, options:)
           @router = router
           @name = name
           @type = type
           @options = options
-          @controller = normalize_controller_name(options[:to] || name.to_s)
+          @action_path = normalize_action_path(options[:to] || name.to_s)
           @path = options[:path] || name.to_s
           @route_name = determine_route_name
         end
 
-        def normalize_controller_name(controller_name)
+        def normalize_action_path(action_path)
           # Convert namespace/action format to namespace.action format
-          controller_name.to_s.gsub("/", ".")
+          action_path.to_s.gsub("/", ".")
         end
 
         def build_routes
@@ -152,12 +152,12 @@ module Hanami
           configs.each do |route_config|
             route_path = build_route_path(route_config[:path_suffix])
             route_name = build_route_name(action, route_config[:name_suffix])
-            controller_action = "#{controller}.#{action}"
+            action_target = "#{action_path}.#{action}"
 
             router.public_send(
               route_config[:method],
               route_path,
-              to: controller_action,
+              to: action_target,
               as: route_name
             )
           end
