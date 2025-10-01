@@ -91,11 +91,11 @@ module Hanami
         def respond_to_format(format, &block)
           return unless content_type == format && block_given?
 
-          set_response_format(format)
+          _set_response_format(format)
           block.call
         end
 
-        def set_response_format(format)
+        def _set_response_format(format)
           return unless @response
 
           @response.format = format
@@ -162,21 +162,39 @@ module Hanami
         end
 
         def determine_format_from_accept_types(accept_types)
-          # Check for specific JSON request (high priority)
-          json_type = accept_types.find { |t| t[:type] == "application/json" }
-          return :json if json_type && json_type[:quality] > 0.5
+          detect_json_format(accept_types) ||
+            detect_html_xml_format(accept_types)
+        end
 
-          # For HTML vs XML conflict, prefer HTML unless XML has significantly higher quality
-          html_type = accept_types.find { |t| t[:type] == "text/html" }
-          xml_type = accept_types.find { |t| t[:type] == "application/xml" || t[:type] == "text/xml" }
+        def detect_json_format(accept_types)
+          json_type = find_accept_type(accept_types, "application/json")
+          :json if json_type && acceptable_quality?(json_type)
+        end
 
-          if html_type && xml_type
-            xml_type[:quality] > html_type[:quality] + 0.1 ? :xml : :html
-          elsif html_type
-            :html
-          elsif xml_type && xml_type[:quality] > 0.5
-            :xml
-          end
+        def detect_html_xml_format(accept_types)
+          html_type = find_accept_type(accept_types, "text/html")
+          xml_type = find_xml_accept_type(accept_types)
+
+          return resolve_html_xml_conflict(html_type, xml_type) if html_type && xml_type
+          return :html if html_type
+
+          :xml if xml_type && acceptable_quality?(xml_type)
+        end
+
+        def find_accept_type(accept_types, media_type)
+          accept_types.find { |t| t[:type] == media_type }
+        end
+
+        def find_xml_accept_type(accept_types)
+          accept_types.find { |t| t[:type] == "application/xml" || t[:type] == "text/xml" }
+        end
+
+        def acceptable_quality?(type)
+          type[:quality] > 0.5
+        end
+
+        def resolve_html_xml_conflict(html_type, xml_type)
+          xml_type[:quality] > html_type[:quality] + 0.1 ? :xml : :html
         end
       end
     end
