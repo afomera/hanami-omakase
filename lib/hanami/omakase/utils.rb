@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
+require "hanami/utils"
 require "hanami/omakase/utils/duration"
-require "hanami/omakase/utils/core_ext/integer"
+require "hanami/omakase/utils/core_ext"
 
 module Hanami
   module Omakase
