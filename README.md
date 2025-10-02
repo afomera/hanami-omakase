@@ -28,6 +28,66 @@ That's all for now, you'll have access to the Core Extensions listed below throu
 
 ## Features:
 
+### Hanami Action
+
+We patch Hanami::Action in your Hanami applications to give a Developer Experience that will feel familiar for users of certian train themed frameworks in Ruby.
+
+#### Important Note on format support
+
+If you wish to use specific formats in the respond_to block, your config and `Hanami::Action` base action will likely need to define them to keep things clean.
+
+For example in `app/action.rb` add, then all children classes of AppName::Action will opt-in for the formats.
+
+```rb
+    format :html, :json, :md, :xml
+```
+
+For markdown support you'll need to add to the `config/app.rb` class
+
+```rb
+config.actions.formats.add(:md, "text/markdown")
+```
+
+You'll also need to define route formats for the endpoint to opt into it.
+
+```rb
+get "/books(.:format)", to: "books.index"
+```
+
+for example to allow any format to be passed through to the Action.
+
+#### respond_with
+
+Allows creating a `respond_with` block that is provided a format argument with `format.html` or `json`, `md`, or `xml` that can return a response body / render a view for the response. Currently only `html`, `json`, `md` and `xml` are supported, and cannot be extended. If you've got a format you'd love support for, please PR it and we can discuss.
+
+Hanami Omakase automatically handles setting the format / content type for you per the format specified in the block, as well as passing it through the `render` method on the `response`.
+
+**Note:** If you use `json` or `xml` formats, `layout` passed to `response.render` is automatically set to `nil`, but if you need to specify a layout you can pass the layout name `layout: "app"` to the `render(view, layout: "app")` call.
+
+If you need to return a specific response body for a format you have access to the response object just like in regular Hanami.
+
+`render` inside of a `format` block is a short-hand syntax for `response.render` so all regular Hanami `response.render` call options will work as before.
+
+```rb
+module Playground
+  module Actions
+    module Articles
+      class Index < Playground::Action
+        def handle(request, response)
+          page_param = (request.params[:page] || 1).to_i
+
+          respond_with do |format|
+            format.html { render(view, per_page: 10, page: page_param) }
+            format.json { render(view, per_page: 100, page: page_param) }
+            format.md { response.body = "# Hello world" }
+          end
+        end
+      end
+    end
+  end
+end
+```
+
 ### Core Extensions
 
 #### Integer
