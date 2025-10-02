@@ -27,9 +27,9 @@ module Hanami
       #
       #     def handle(request, response)
       #       respond_with do |format|
-      #         format.html { response.render(view, per_page: 10, page: params[:page]) }
-      #         format.json { response.render(view, per_page: 20) } # format: :json added automatically
-      #         format.xml  { response.render(view) } # format: :xml added automatically
+      #         format.html { render(view, per_page: 10, page: params[:page]) }
+      #         format.json { render(view, per_page: 20) } # format: :json and layout: nil added automatically
+      #         format.xml  { render(view) } # format: :xml and layout: nil added automatically
       #       end
       #     end
       #   end
@@ -42,7 +42,7 @@ module Hanami
       def respond_with(&block)
         req, res = extract_request_response(block.binding)
         responder = FormatResponder.new(req, res, self)
-        yield responder
+        responder.instance_exec(responder, &block)
         responder.validate_format_handled!
       end
 
@@ -80,11 +80,29 @@ module Hanami
           @current_format = nil
         end
 
+        # Delegate method calls to the action to access its variables and methods
+        def method_missing(method_name, *args, **kwargs, &block)
+          if @action.respond_to?(method_name, true)
+            @action.send(method_name, *args, **kwargs, &block)
+          else
+            super
+          end
+        end
+
+        def respond_to_missing?(method_name, include_private = false)
+          @action.respond_to?(method_name, include_private) || super
+        end
+
         SUPPORTED_FORMATS.each do |format|
           define_method(format) do |&block|
             @defined_formats << format.to_sym
             respond_to_format(format.to_sym, &block)
           end
+        end
+
+        # Delegate render calls to the enhanced response render method
+        def render(*args, **kwargs)
+          @response.render(*args, **kwargs)
         end
 
         def validate_format_handled!
@@ -103,7 +121,7 @@ module Hanami
           @current_format = format
 
           # Enhance the response's render method if available
-          _enhance_response_render_method(format) if @response&.respond_to?(:render)
+          _enhance_response_render_method(format) if @response.respond_to?(:render)
 
           block.call
         ensure
