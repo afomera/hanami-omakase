@@ -3,6 +3,7 @@
 require "zeitwerk"
 
 require "hanami/omakase/utils"
+require "hanami/omakase/action"
 
 module Hanami
   module Omakase
