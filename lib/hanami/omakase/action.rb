@@ -27,15 +27,21 @@ module Hanami
       #
       #     def handle(request, response)
       #       respond_with do |format|
-      #         format.html { response.body = "<h1>Hello, HTML!</h1>" }
-      #         format.json { response.body = { message: "Hello, JSON!" }.to_json }
-      #         format.xml  { response.body = "<message>Hello, XML!</message>" }
+      #         format.html { response.render(view, per_page: 10, page: params[:page]) }
+      #         format.json { response.render(view, per_page: 20) } # format: :json added automatically
+      #         format.xml  { response.render(view) } # format: :xml added automatically
       #       end
       #     end
       #   end
+      #
+      # For non-HTML formats, both format and layout are automatically handled:
+      # - format: :json (or :xml) is automatically added
+      # - layout: nil is automatically set to disable layouts
+      # Your other parameters (per_page, page, etc.) are preserved and work normally.
+      # You can override either by explicitly passing format: :something or layout: MyLayout.
       def respond_with(&block)
         req, res = extract_request_response(block.binding)
-        responder = FormatResponder.new(req, res)
+        responder = FormatResponder.new(req, res, self)
         yield responder
         responder.validate_format_handled!
       end
@@ -65,11 +71,13 @@ module Hanami
           md: "text/markdown"
         }.freeze
 
-        def initialize(request, response)
+        def initialize(request, response, action = nil)
           @request = request
           @response = response
+          @action = action
           @content_type = nil
           @defined_formats = []
+          @current_format = nil
         end
 
         SUPPORTED_FORMATS.each do |format|
@@ -92,7 +100,15 @@ module Hanami
           return unless content_type == format && block_given?
 
           _set_response_format(format)
+          @current_format = format
+
+          # Enhance the response's render method if available
+          _enhance_response_render_method(format) if @response&.respond_to?(:render)
+
           block.call
+        ensure
+          # Restore original render method after block execution
+          _restore_response_render_method if @response && @original_render_method
         end
 
         def _set_response_format(format)
@@ -102,6 +118,37 @@ module Hanami
 
           content_type_header = CONTENT_TYPES[format]
           @response.headers["Content-Type"] = content_type_header if content_type_header
+        end
+
+        def _enhance_response_render_method(format)
+          return unless @response.respond_to?(:render)
+
+          # Store original render method in local variable for closure
+          original_render_method = @response.method(:render)
+          @original_render_method = original_render_method # Keep for cleanup
+
+          # Define enhanced render method that automatically includes format and layout handling
+          @response.define_singleton_method(:render) do |*args, **kwargs|
+            # If format is not explicitly provided and we're not rendering HTML, add it
+            if format != :html && !kwargs.key?(:format)
+              kwargs[:format] = format
+            end
+
+            # For non-HTML formats, disable layout unless explicitly specified
+            if format != :html && !kwargs.key?(:layout)
+              kwargs[:layout] = nil
+            end
+
+            original_render_method.call(*args, **kwargs)
+          end
+        end
+
+        def _restore_response_render_method
+          return unless @response && @original_render_method
+
+          # Restore the original render method
+          @response.define_singleton_method(:render, @original_render_method)
+          @original_render_method = nil
         end
 
         def content_type
