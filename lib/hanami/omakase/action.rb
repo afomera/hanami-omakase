@@ -1,13 +1,19 @@
 # frozen_string_literal: true
 
 require "hanami/action"
+require "hanami/omakase/errors/actionable_error"
 
 module Hanami
   module Omakase
-    # Exception raised when a requested format is not handled by the action
-    class UnknownFormatError < StandardError
+    # Exception raised when a requested format is not handled by the action, or defined at all.
+    class UndefinedFormatError < StandardError
+      include Errors::ActionableError
+
       def initialize(format, defined_formats)
-        super("Format '#{format}' is not supported. Defined formats: #{defined_formats.join(', ')}")
+        super("Format '#{format}' is not defined within the `respond_with` block. Defined formats: #{defined_formats.join(', ')}")
+      end
+
+      action :view_format_docs, "View documentation on supported formats" do |error|
       end
     end
 
@@ -19,7 +25,7 @@ module Hanami
       #
       # Supported formats: :html, :json, :xml, :md
       #
-      # Raises Hanami::Omakase::UnknownFormatError if the requested format is not handled.
+      # Raises Hanami::Omakase::UndefinedFormatError if the requested format is not handled.
       #
       # Usage:
       #   class MyAction
@@ -109,7 +115,7 @@ module Hanami
           requested_format = content_type
           return if @defined_formats.include?(requested_format)
 
-          raise UnknownFormatError.new(requested_format, @defined_formats)
+          raise UndefinedFormatError.new(requested_format, @defined_formats)
         end
 
         private

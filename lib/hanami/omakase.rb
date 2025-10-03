@@ -4,6 +4,7 @@ require "zeitwerk"
 
 require "hanami/omakase/utils"
 require "hanami/omakase/action"
+require "hanami/omakase/errors"
 require "hanami/omakase/view_helpers"
 
 module Hanami
@@ -17,6 +18,7 @@ module Hanami
         loader.push_dir root
       end
     end
+
     loader.setup
   end
 end
