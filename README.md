@@ -28,6 +28,20 @@ That's all for now, you'll have access to the Core Extensions listed below throu
 
 ## Features:
 
+### Hanami View
+
+#### url_for / path_for helper
+
+In standard Hanami you can access route paths and urls with `routes.path(:named_route, id: ...)` or `routes.url`. Hanami Omakase adds `url_for(:named_route, id: ...)` and `path_for` methods to help clean it up slightly.
+
+```erb
+<div>
+  <%= link_to "New", path_for(:new_article) %> -
+  <%= link_to "Show", path_for(:article, id: article[:id]) %> -
+  <%= link_to "Edit", path_for(:edit_article, id: article[:id]) %>
+</div>
+```
+
 ### Hanami Action
 
 We patch Hanami::Action in your Hanami applications to give a Developer Experience that will feel familiar for users of certian train themed frameworks in Ruby.

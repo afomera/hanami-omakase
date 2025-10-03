@@ -4,6 +4,7 @@ require "zeitwerk"
 
 require "hanami/omakase/utils"
 require "hanami/omakase/action"
+require "hanami/omakase/view_helpers"
 
 module Hanami
   module Omakase
