@@ -25,7 +25,7 @@ module Hanami
         attr_reader :show_exceptions, :consider_all_requests_local
 
         def show_exceptions_for_request?(env)
-          return true # HACK: to always show exceptions
+          # return true # HACK: to always show exceptions
           return false unless @show_exceptions
           return true if @consider_all_requests_local
 

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hanami/omakase/errors/error_patches"
+
 module Hanami
   module Omakase
     module Errors
